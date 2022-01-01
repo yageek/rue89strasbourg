@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+# vim:fileencoding=utf-8
+from calibre.web.feeds.news import BasicNewsRecipe
+from calibre.ebooks.BeautifulSoup import BeautifulSoup
+
+class Rue89StrasbourgRecipe(BasicNewsRecipe):
+    title          = 'Rue89 Strasbourg'
+    __author__     = 'Yannick Heinrich'
+    description    = 'Les nouvelles de Rue89Strasbourg'
+    oldest_article = 7
+    max_articles_per_feed = 100
+
+    auto_cleanup   = False # Use readability algorithm
+    no_stylesheets = True 
+
+    remove_tags_before = dict(name='div', class_='article__content')
+    remove_tags_after =  dict(name='div', class_='article__content')
+    remove_tags       =  [
+        dict(name='div', class_='mobile2--palm'),
+        dict(attrs={'class':['ad-block', 'only-palm']})
+        ]
+    # Feeds
+    feeds          = [
+        ('Rue89 Strasbourg', 'http://feeds.feedburner.com/Rue89Strasbourg'),
+    ]
+
+    # Login
+    needs_subscription = True
+
+    def get_browser(self):
+        br = BasicNewsRecipe.get_browser(self)
+        if self.username is not None and self.password is not None:
+            br.open('https://www.rue89strasbourg.com/user/connexion')
+            br.select_form(id='rcp_login_form')
+            br['rcp_user_login']   = self.username
+            br['rcp_user_pass'] = self.password
+            br.submit()
+        return br
