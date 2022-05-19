@@ -3,24 +3,37 @@
 from calibre.web.feeds.news import BasicNewsRecipe
 from calibre.ebooks.BeautifulSoup import BeautifulSoup
 
+
 class Rue89StrasbourgRecipe(BasicNewsRecipe):
-    title          = 'Rue89 Strasbourg'
-    __author__     = 'Yannick Heinrich'
-    description    = 'Les nouvelles de Rue89Strasbourg'
-    oldest_article = 7
+    title = 'Rue89 Strasbourg'
+    __author__ = 'Yannick Heinrich'
+    description = 'Les nouvelles de Rue89Strasbourg'
+    oldest_article = 30
     max_articles_per_feed = 100
 
-    auto_cleanup   = False # Use readability algorithm
-    no_stylesheets = True 
+    auto_cleanup = False  # Use readability algorithm
+    no_stylesheets = True
 
     remove_tags_before = dict(name='div', class_='article__content')
-    remove_tags_after =  dict(name='div', class_='article__content')
-    remove_tags       =  [
+    remove_tags_after = [
+        dict(name='div', attrs={'class': ['newsletter', 'js-newsletter']}), dict(name='div', class_='r89-paywall'), ]
+    remove_tags = [
         dict(name='div', class_='mobile2--palm'),
-        dict(attrs={'class':['ad-block', 'only-palm']})
-        ]
+        dict(attrs={'class': ['ad-block', 'only-palm']}),
+        dict(name='div', class_='header'),
+        dict(name='div', class_='anti-blocker'),
+        dict(name='div', attrs={
+             'class': ['sharedaddy', 'sd-sharing-enabled']}),
+        dict(name='div', class_='keywords'),
+        dict(name='div', class_='only-palm-lap'),
+        dict(name='div', attrs={'class': ['newsletter', 'js-newsletter']}),
+        dict(name='div', attrs={'class': ['author__links', 'bordered']}),
+        dict(name='div', class_='bordure'),
+        dict(name='div', attrs={'class': ['header__top', 'only-lap-desk']}),
+        dict(name='header', class_='header'),
+    ]
     # Feeds
-    feeds          = [
+    feeds = [
         ('Rue89 Strasbourg', 'http://feeds.feedburner.com/Rue89Strasbourg'),
     ]
 
@@ -32,7 +45,7 @@ class Rue89StrasbourgRecipe(BasicNewsRecipe):
         if self.username is not None and self.password is not None:
             br.open('https://www.rue89strasbourg.com/user/connexion')
             br.select_form(id='rcp_login_form')
-            br['rcp_user_login']   = self.username
+            br['rcp_user_login'] = self.username
             br['rcp_user_pass'] = self.password
             br.submit()
         return br
