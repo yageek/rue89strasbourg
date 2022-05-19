@@ -39,6 +39,7 @@ class Rue89StrasbourgRecipe(BasicNewsRecipe):
 
     # Login
     needs_subscription = True
+    cover_url = 'https://www.rue89strasbourg.com/wp-content/uploads/2016/08/logo-dark@2x.png'
 
     def get_browser(self):
         br = BasicNewsRecipe.get_browser(self)
