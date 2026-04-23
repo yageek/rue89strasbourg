@@ -1,2 +1,4 @@
 debug/
 *.epub
+.DS_Store
+curl/

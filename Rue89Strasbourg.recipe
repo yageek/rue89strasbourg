@@ -1,53 +1,85 @@
 #!/usr/bin/env python
 # vim:fileencoding=utf-8
-from calibre.web.feeds.news import BasicNewsRecipe
+from urllib.parse import parse_qs, urlparse
+import mechanize
 from calibre.ebooks.BeautifulSoup import BeautifulSoup
-
+from calibre.web.feeds.news import BasicNewsRecipe
+import json
 
 class Rue89StrasbourgRecipe(BasicNewsRecipe):
-    title = 'Rue89 Strasbourg'
-    __author__ = 'Yannick Heinrich'
-    description = 'Les nouvelles de Rue89Strasbourg'
+    title = "Rue89 Strasbourg"
+    __author__ = "Yannick Heinrich"
+    description = "Les nouvelles de Rue89Strasbourg"
     oldest_article = 30
     max_articles_per_feed = 100
 
     auto_cleanup = False  # Use readability algorithm
     no_stylesheets = True
 
-    remove_tags_before = dict(name='div', class_='article__content')
+    remove_tags_before = dict(name="div", class_="article__content")
     remove_tags_after = [
-        dict(name='div', attrs={'class': ['newsletter', 'js-newsletter']}), dict(name='div', class_='r89-paywall'), ]
+        dict(name="div", attrs={"class": ["newsletter", "js-newsletter"]}),
+        dict(name="div", class_="r89-paywall"),
+    ]
     remove_tags = [
-        dict(name='div', class_='mobile2--palm'),
-        dict(attrs={'class': ['ad-block', 'only-palm']}),
-        dict(name='div', class_='header'),
-        dict(name='div', class_='anti-blocker'),
-        dict(name='div', attrs={
-             'class': ['sharedaddy', 'sd-sharing-enabled']}),
-        dict(name='div', class_='keywords'),
-        dict(name='div', class_='only-palm-lap'),
-        dict(name='div', attrs={'class': ['newsletter', 'js-newsletter']}),
-        dict(name='div', attrs={'class': ['author__links', 'bordered']}),
-        dict(name='div', class_='bordure'),
-        dict(name='div', attrs={'class': ['header__top', 'only-lap-desk']}),
-        dict(name='header', class_='header'),
-        dict(name='a', class_='article-block__label'),
+        dict(name="div", class_="mobile2--palm"),
+        dict(attrs={"class": ["ad-block", "only-palm"]}),
+        dict(name="div", class_="header"),
+        dict(name="div", class_="anti-blocker"),
+        dict(name="div", attrs={"class": ["sharedaddy", "sd-sharing-enabled"]}),
+        dict(name="div", class_="keywords"),
+        dict(name="div", class_="only-palm-lap"),
+        dict(name="div", attrs={"class": ["newsletter", "js-newsletter"]}),
+        dict(name="div", attrs={"class": ["author__links", "bordered"]}),
+        dict(name="div", class_="bordure"),
+        dict(name="div", attrs={"class": ["header__top", "only-lap-desk"]}),
+        dict(name="header", class_="header"),
+        dict(name="a", class_="article-block__label"),
     ]
     # Feeds
     feeds = [
-        ('Rue89 Strasbourg', 'http://feeds.feedburner.com/Rue89Strasbourg'),
+        ("Rue89 Strasbourg", "https://www.rue89strasbourg.com/feed"),
     ]
 
     # Login
-    needs_subscription = 'optional'
-    cover_url = 'https://www.rue89strasbourg.com/wp-content/uploads/2016/08/logo-dark@2x.png'
+    needs_subscription = "optional"
+    cover_url = (
+        "https://www.rue89strasbourg.com/wp-content/uploads/2016/08/logo-dark@2x.png"
+    )
 
     def get_browser(self):
+        # We get the browser
         br = BasicNewsRecipe.get_browser(self)
         if self.username is not None and self.password is not None:
-            br.open('https://www.rue89strasbourg.com/user/connexion')
-            br.select_form(id='rcp_login_form')
-            br['rcp_user_login'] = self.username
-            br['rcp_user_pass'] = self.password
-            br.submit()
+                
+            # Retrieve the version
+            response = br.open("https://www.rue89strasbourg.com/user/connexion")
+            soup = BeautifulSoup(response.read())
+            version_script_tag_mangled = soup.find(id="cookie-dynamic-script-js")["src"]
+            parsed_url = urlparse(version_script_tag_mangled)
+            version = parse_qs(parsed_url.query)["ver"]
+
+            # Retrieve the login nonce
+            response = br.open(
+                f"https://www.rue89strasbourg.com/?r89-api=dynamic-script&ver={version}"
+            )
+            nonce_one_text = response.read().decode('utf-8')
+            key='"form_async_login":"'
+            index_find = nonce_one_text.find('"form_async_login":"')
+            remaining = nonce_one_text[index_find + len(key):]
+            next_opening = remaining.find('"')
+            form_async_token = remaining[:next_opening]
+
+
+            # Now login properly to the webpage  
+            body = json.dumps({"email": self.username,"password": self.password,"remember-me":True,"tempcode":"","redirect":"","":False}).encode('utf-8')  
+            login_request = mechanize.Request(
+                f"https://www.rue89strasbourg.com/?r89-api=form_async_login&_wpnonce={form_async_token}",
+                headers={'Referer': 'https://www.rue89strasbourg.com/user/connexion', 'Content-Type': ' application/json'},
+                method="POST",
+                data=body
+                )
+            br.open('https://www.rue89strasbourg.com/user/subscription')
         return br
+
+
