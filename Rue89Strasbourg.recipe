@@ -10,7 +10,7 @@ from datetime import datetime
 class Rue89StrasbourgRecipe(BasicNewsRecipe):
     title = "Rue89 Strasbourg"
     __author__ = "Yannick Heinrich"
-    description = "Les nouvelles de Rue89Strasbourg"
+    description = "Les nouvelles de ce mois dans Rue89Strasbourg"
     no_stylesheets = True
     remove_tags_before = dict(name="main")
     remove_tags_after = dict(name="main")
@@ -34,11 +34,7 @@ class Rue89StrasbourgRecipe(BasicNewsRecipe):
     # Login
     needs_subscription = "optional"
 
-    def parse_index(self):
-        # We get the current month
-        current_month = datetime.now().month
-        current_year = datetime.now().year
-        soup  = self.index_to_soup(f'https://www.rue89strasbourg.com/date/{current_year}/{current_month}')
+    def get_page_articles(self, soup):
         articles = []
         for article in soup.findAll('article'):
             # We first find the date link
@@ -52,7 +48,31 @@ class Rue89StrasbourgRecipe(BasicNewsRecipe):
             article_description = self.tag_to_string(article.findAll('p')[1])
             fetched = dict(title=article_title, url=article_url, date=article_date, description=article_description, content="")            
             articles.append(fetched)
-        return [('Derniers articles du mois', articles)]
+        return articles
+    
+    def parse_index(self):
+        # We get the current month
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+
+        # We get the elements of the first page
+        soup = self.index_to_soup(f'https://www.rue89strasbourg.com/date/{current_year}/{current_month}')
+        articles = self.get_page_articles(soup)
+
+        # Then we get the remaining pages numes
+        pages = soup.findAll('a', class_='page-numbers')
+
+        # Feeds
+        feed_name = f'Articles de {current_month}/{current_year}'
+        if len(pages) < 0:
+            return [(feed_name, articles)]
+        else:
+            last_page_number = int(pages[-1].contents[0])
+            for i in range(1, last_page_number + 1):
+                soup = self.index_to_soup(f'https://www.rue89strasbourg.com/date/{current_year}/{current_month}/page/{last_page_number}')
+                new_articles = self.get_page_articles(soup)
+                articles.extend(new_articles)
+        return [(feed_name, articles)]
 
     def get_browser(self):
         # We get the browser
