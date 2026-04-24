@@ -5,53 +5,59 @@ import mechanize
 from calibre.ebooks.BeautifulSoup import BeautifulSoup
 from calibre.web.feeds.news import BasicNewsRecipe
 import json
+from datetime import datetime
 
 class Rue89StrasbourgRecipe(BasicNewsRecipe):
     title = "Rue89 Strasbourg"
     __author__ = "Yannick Heinrich"
     description = "Les nouvelles de Rue89Strasbourg"
-    oldest_article = 30
-    max_articles_per_feed = 100
-
-    auto_cleanup = False  # Use readability algorithm
     no_stylesheets = True
+    remove_tags_before = dict(name="main")
+    remove_tags_after = dict(name="main")
+    timefmt = '[%a, %d %b, %Y]'
 
-    remove_tags_before = dict(name="div", class_="article__content")
-    remove_tags_after = [
-        dict(name="div", attrs={"class": ["newsletter", "js-newsletter"]}),
-        dict(name="div", class_="r89-paywall"),
-    ]
     remove_tags = [
-        dict(name="div", class_="mobile2--palm"),
-        dict(attrs={"class": ["ad-block", "only-palm"]}),
-        dict(name="div", class_="header"),
-        dict(name="div", class_="anti-blocker"),
-        dict(name="div", attrs={"class": ["sharedaddy", "sd-sharing-enabled"]}),
-        dict(name="div", class_="keywords"),
-        dict(name="div", class_="only-palm-lap"),
-        dict(name="div", attrs={"class": ["newsletter", "js-newsletter"]}),
-        dict(name="div", attrs={"class": ["author__links", "bordered"]}),
-        dict(name="div", class_="bordure"),
-        dict(name="div", attrs={"class": ["header__top", "only-lap-desk"]}),
-        dict(name="header", class_="header"),
-        dict(name="a", class_="article-block__label"),
-    ]
-    # Feeds
-    feeds = [
-        ("Rue89 Strasbourg", "https://www.rue89strasbourg.com/feed"),
+        dict(name="div", class_="hidden"),
+        dict(name="div", attrs={'class': ['group', 'hidden']}),
+        dict(name="div", class_="print:hidden"),
+        # Author avatar and label
+        dict(name="div", class_="overflow-hidden"),
+        dict(name="strong", class_="block font-semibold mb-4 text-gray-700"),
+        dict(name="a", class_="not-prose"),
+        dict(name="div", class_="vt-post-breadcrumb"),
+        dict(name="div", class_="bg-warning"),
+        dict(name="div", class_="not-prose mb-8 md:mb-6"),
+        dict(name="div", class_="wp-block-group md:flex-1 is-content-justification-right is-nowrap is-layout-flex wp-block-group-is-layout-flex"),
+        dict(name="a", class_="group flex items-start justify-between leading-6 p-6 transition-colors duration-fast hover:bg-gray-200")
     ]
 
     # Login
     needs_subscription = "optional"
-    cover_url = (
-        "https://www.rue89strasbourg.com/wp-content/uploads/2016/08/logo-dark@2x.png"
-    )
+
+    def parse_index(self):
+        # We get the current month
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        soup  = self.index_to_soup(f'https://www.rue89strasbourg.com/date/{current_year}/{current_month}')
+        articles = []
+        for article in soup.findAll('article'):
+            # We first find the date link
+            article_date_tag = article.find('div', class_="mb-2 text-gray-600 text-sm")   
+            article_date_raw = article_date_tag['title']
+            article_date_py = datetime.strptime(article_date_raw,"le %d/%m/%Y à %Hh%M").date()
+            article_date = article_date_py.strftime("%d/%m/%Y %H:%M")
+            # Then the url is the link within the parent of this tag
+            article_url = article_date_tag.parent['href']    
+            article_title = self.tag_to_string(article.h2)
+            article_description = self.tag_to_string(article.findAll('p')[1])
+            fetched = dict(title=article_title, url=article_url, date=article_date, description=article_description, content="")            
+            articles.append(fetched)
+        return [('Derniers articles du mois', articles)]
 
     def get_browser(self):
         # We get the browser
         br = BasicNewsRecipe.get_browser(self)
         if self.username is not None and self.password is not None:
-                
             # Retrieve the version
             response = br.open("https://www.rue89strasbourg.com/user/connexion")
             soup = BeautifulSoup(response.read())
@@ -70,16 +76,17 @@ class Rue89StrasbourgRecipe(BasicNewsRecipe):
             next_opening = remaining.find('"')
             form_async_token = remaining[:next_opening]
 
-
             # Now login properly to the webpage  
-            body = json.dumps({"email": self.username,"password": self.password,"remember-me":True,"tempcode":"","redirect":"","":False}).encode('utf-8')  
+            body = json.dumps({"email": self.username,"password": self.password, "remember-me":True, "tempcode": "", "redirect": "", "": False}).encode('utf-8')  
+
             login_request = mechanize.Request(
                 f"https://www.rue89strasbourg.com/?r89-api=form_async_login&_wpnonce={form_async_token}",
                 headers={'Referer': 'https://www.rue89strasbourg.com/user/connexion', 'Content-Type': ' application/json'},
                 method="POST",
                 data=body
                 )
-            br.open('https://www.rue89strasbourg.com/user/subscription')
+            response = br.open(login_request)
+            br.open('https://www.rue89strasbourg.com/user/subscription')        
         return br
 
 
